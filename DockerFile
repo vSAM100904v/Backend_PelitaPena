@@ -1,21 +1,21 @@
-# 1. Base image Golang
-FROM golang:1.20-alpine
+# Gunakan image Golang official sebagai base image
+FROM golang:latest
 
-# 2. Set working dir
+# Set environment variable agar Go modules bisa dijalankan
+ENV GO111MODULE=on
+
+# Menyalin file-file yang diperlukan ke dalam wadah
 WORKDIR /app
-
-# 3. Copy go.mod & go.sum, lalu download dependencies
-COPY go.mod go.sum ./
+COPY go.mod .
+COPY go.sum .
 RUN go mod download
-
-# 4. Copy seluruh source code
 COPY . .
 
-# 5. Build binary dengan nama "server"
-RUN go build -o server .
+# Compile aplikasi Go
+RUN go build -o main .
 
-# 6. Expose port (harus sesuai PORT Railway, default 8080)
+# Port yang akan diexpose oleh aplikasi
 EXPOSE 8080
 
-# 7. Perintah jalankan aplikasi
-CMD ["./server"]
+# Command untuk menjalankan aplikasi saat wadah dijalankan
+CMD ["main"]
