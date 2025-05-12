@@ -114,6 +114,7 @@ func SetMasyarakatRoutes(app *fiber.App) {
 
 	masyarakatGroup.Get("/notification/push", handlers.SendPushNotification)
 	masyarakatGroup.Post("/report/admin", handlers.UserReportAdmin)
+	masyarakatGroup.Post("/delete-image", handlers.DeleteImage)
 }
 
 /*========= ||  Endpoint bisa di akses tanpa login || ====================*/
@@ -131,5 +132,5 @@ func RoutesWithOutLogin(app *fiber.App) {
 	app.Get("/hello", handlers.HelloMasyarakat)
 	app.Get("/api/publik/kategori-kekerasan", handlers.GetAllViolenceCategories)
 	app.Get("/api/publik/detail-kategori-kekerasan/:id", handlers.GetViolenceCategoryByID)
-
+	app.Post("/api/publik/delete-image", handlers.DeleteImage)
 }

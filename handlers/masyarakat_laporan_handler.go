@@ -68,13 +68,13 @@ func CreateLaporan(c *fiber.Ctx) error {
 			"error": "Failed to retrieve multipart form",
 		})
 	}
-	files := form.File["dokumentasi"]
-	imageURLs, err := helper.UploadMultipleFileToCloudinary(files)
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to upload images",
-		})
-	}
+	imageURLs := form.Value["dokumentasi"]
+	// imageURLs, err := helper.UploadMultipleFileToCloudinary(files)
+	// if err != nil {
+	// 	return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
+	// 		"error": "Failed to upload images",
+	// 	})
+	// }
 
 	laporan.Dokumentasi = datatypes.JSONMap{"urls": imageURLs}
 
@@ -540,5 +540,3 @@ func BatalkanLaporan(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(response)
 }
-
-

@@ -4,13 +4,17 @@ import (
 	"backend-pedika-fiber/database"
 	"backend-pedika-fiber/helper"
 	"backend-pedika-fiber/models"
+	"context"
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"strconv"
 	"time"
 
+	"github.com/cloudinary/cloudinary-go"
+	"github.com/cloudinary/cloudinary-go/api/admin"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -333,13 +337,20 @@ func SendPushNotification(c *fiber.Ctx) error {
 	if req.Data.DeepLink == "" {
 		req.Data.DeepLink = "laporanku://notifications/general"
 	}
-
+	notificationData := models.FCMNotificationData{
+		Type:      "chat_message",
+		ReportID:  req.Data.ReportID,
+		Status:    "chat_message",
+		UpdatedBy: userID,
+		UpdatedAt: time.Now().Format(time.RFC3339),
+		Notes:     req.Data.Notes,
+	}
 	// Create notification
 	notification, err := NewNotificationFromFCMData(
 		uint(req.ClientID),
 		req.Title,
 		req.Body,
-		req.Data,
+		notificationData,
 		now,
 	)
 	if err != nil {
@@ -471,7 +482,6 @@ func GetUsernameByID(c *fiber.Ctx) error {
 	userID := uint(userIDFloat)
 	log.Printf("Fetching username for client ID by userID: %d", userID)
 
-	// Ambil clientId dari parameter URL
 	clientIDStr := c.Params("id")
 	clientID, err := strconv.ParseUint(clientIDStr, 10, 32)
 	if err != nil {
@@ -481,7 +491,6 @@ func GetUsernameByID(c *fiber.Ctx) error {
 		})
 	}
 
-	// Query untuk mendapatkan username dari tabel users
 	var user models.User
 	if err := db.Select("username").
 		Where("id = ?", clientID).
@@ -491,8 +500,6 @@ func GetUsernameByID(c *fiber.Ctx) error {
 			Message: "User not found",
 		})
 	}
-
-	log.Printf("Fetched username: %s for client ID: %d", user.Username, clientID)
 
 	return c.Status(fiber.StatusOK).JSON(helper.ResponseWithData{
 		Message: "Username fetched successfully",
@@ -571,5 +578,53 @@ func GetUsernamesByIDs(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(helper.ResponseWithData{
 		Message: "Usernames fetched successfully",
 		Data:    usernameMap,
+	})
+}
+
+func DeleteImage(c *fiber.Ctx) error {
+
+	var request struct {
+		ImageUrls []string `json:"image_urls"`
+	}
+	if err := c.BodyParser(&request); err != nil {
+		log.Printf("Invalid request body: %v", err)
+		return c.Status(fiber.StatusBadRequest).JSON(helper.ResponseWithOutData{
+			Message: "Invalid request body",
+		})
+	}
+
+	if len(request.ImageUrls) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(helper.ResponseWithOutData{
+			Message: "Public ID cannot be empty",
+		})
+	}
+
+	cld, err := cloudinary.NewFromParams("dgnexszl2", "228927731812515", "y1js3wYIec7qP8E-sBhkNF7n7Xs")
+	if err != nil {
+		log.Fatalf("Failed to initialize Cloudinary: %v", err)
+	}
+	var ctx = context.Background()
+	var publicIds []string
+
+	for _, imageUrl := range request.ImageUrls {
+		arr := strings.Split(imageUrl, "/")
+		publicID := arr[len(arr)-1]
+		publicIds = append(publicIds, publicID)
+	}
+
+	resp, err := cld.Admin.DeleteAssets(ctx, admin.DeleteAssetsParams{
+		PublicIDs:    publicIds,
+		DeliveryType: "upload",
+		AssetType:    "image",
+	})
+	if err != nil {
+		log.Printf("Failed to delete image: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(helper.ResponseWithOutData{
+			Message: "Failed to delete image",
+		})
+	}
+	fmt.Println("Response:", resp)
+	return c.Status(fiber.StatusOK).JSON(helper.ResponseWithOutData{
+		Message: "Image deleted successfully",
 	})
 }

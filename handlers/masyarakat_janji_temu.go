@@ -118,73 +118,111 @@ func parseDateTime(s string) (time.Time, error) {
 func MasyarakatEditJanjiTemu(c *fiber.Ctx) error {
 	janjiTemuID := c.Params("id")
 
+	// Struct untuk menerima input dari client
 	var updateRequest struct {
-		WaktuDimulai        string `json:"waktu_dimulai"`
-		WaktuSelesai        string `json:"waktu_selesai"`
+		WaktuDimulaiStr     string `json:"waktu_dimulai"`
+		WaktuSelesaiStr     string `json:"waktu_selesai"`
 		KeperluanKonsultasi string `json:"keperluan_konsultasi"`
 	}
+
+	// Parse body request
 	if err := c.BodyParser(&updateRequest); err != nil {
 		response := helper.ResponseWithOutData{
 			Code:    http.StatusBadRequest,
 			Status:  "error",
-			Message: "Invalid request body",
+			Message: "Body request tidak valid",
 		}
 		return c.Status(http.StatusBadRequest).JSON(response)
 	}
 
-	waktuDimulai, err := parseDateTime(updateRequest.WaktuDimulai)
+	// Log input untuk debugging
+	log.Printf("Input diterima: waktu_dimulai=%s, waktu_selesai=%s, keperluan=%s",
+		updateRequest.WaktuDimulaiStr, updateRequest.WaktuSelesaiStr, updateRequest.KeperluanKonsultasi)
+
+	// Parsing waktu_dimulai
+	waktuDimulai, err := time.Parse("2006-01-02T15:04:05.000Z07:00", updateRequest.WaktuDimulaiStr)
 	if err != nil {
 		response := helper.ResponseWithOutData{
 			Code:    http.StatusBadRequest,
 			Status:  "error",
-			Message: "Invalid waktu_dimulai format",
-		}
-		return c.Status(http.StatusBadRequest).JSON(response)
-	}
-	waktuSelesai, err := parseDateTime(updateRequest.WaktuSelesai)
-	if err != nil {
-		response := helper.ResponseWithOutData{
-			Code:    http.StatusBadRequest,
-			Status:  "error",
-			Message: "Invalid waktu_selesai format",
+			Message: "Format waktu_dimulai tidak valid: " + err.Error(),
 		}
 		return c.Status(http.StatusBadRequest).JSON(response)
 	}
 
+	// Parsing waktu_selesai
+	waktuSelesai, err := time.Parse("2006-01-02T15:04:05.000Z07:00", updateRequest.WaktuSelesaiStr)
+	if err != nil {
+		response := helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Format waktu_selesai tidak valid: " + err.Error(),
+		}
+		return c.Status(http.StatusBadRequest).JSON(response)
+	}
+
+	// Validasi waktu tidak boleh nol
+	if waktuDimulai.IsZero() || waktuSelesai.IsZero() {
+		response := helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Waktu dimulai atau waktu selesai tidak boleh kosong",
+		}
+		return c.Status(http.StatusBadRequest).JSON(response)
+	}
+
+	// Validasi logis
+	if waktuSelesai.Before(waktuDimulai) {
+		response := helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Waktu selesai harus setelah waktu dimulai",
+		}
+		return c.Status(http.StatusBadRequest).JSON(response)
+	}
+
+	// Cari data janji temu
 	var janjiTemu models.JanjiTemu
 	if err := database.DB.First(&janjiTemu, janjiTemuID).Error; err != nil {
 		response := helper.ResponseWithOutData{
 			Code:    http.StatusNotFound,
 			Status:  "error",
-			Message: "Janji temu not found",
+			Message: "Janji temu tidak ditemukan",
 		}
 		return c.Status(http.StatusNotFound).JSON(response)
 	}
+
+	// Cek status
 	if janjiTemu.Status != "Belum disetujui" {
 		response := helper.ResponseWithOutData{
 			Code:    http.StatusForbidden,
 			Status:  "error",
-			Message: "Forbidden: You can only edit appointments with status 'Belum disetujui'",
+			Message: "Hanya janji temu dengan status 'Belum disetujui' yang bisa diedit",
 		}
 		return c.Status(http.StatusForbidden).JSON(response)
 	}
+
+	// Update data
 	janjiTemu.WaktuDimulai = waktuDimulai
 	janjiTemu.WaktuSelesai = waktuSelesai
-	janjiTemu.KeperluanKonsultasi = c.FormValue("keperluan_konsultasi")
+	janjiTemu.KeperluanKonsultasi = updateRequest.KeperluanKonsultasi
 
+	// Simpan ke database
 	if err := database.DB.Save(&janjiTemu).Error; err != nil {
+		log.Printf("Gagal menyimpan ke database: %v", err)
 		response := helper.ResponseWithOutData{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
-			Message: "Failed to update janji temu",
+			Message: "Gagal memperbarui janji temu: " + err.Error(),
 		}
 		return c.Status(http.StatusInternalServerError).JSON(response)
 	}
 
+	// Respon sukses
 	response := helper.ResponseWithOutData{
 		Code:    http.StatusOK,
 		Status:  "success",
-		Message: "Janji temu updated successfully",
+		Message: "Janji temu berhasil diperbarui",
 	}
 	return c.Status(http.StatusOK).JSON(response)
 }
