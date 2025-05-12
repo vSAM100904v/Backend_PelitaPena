@@ -139,8 +139,31 @@ func MasyarakatEditJanjiTemu(c *fiber.Ctx) error {
 	log.Printf("Input diterima: waktu_dimulai=%s, waktu_selesai=%s, keperluan=%s",
 		updateRequest.WaktuDimulaiStr, updateRequest.WaktuSelesaiStr, updateRequest.KeperluanKonsultasi)
 
+	// Fungsi untuk parsing datetime dengan beberapa format
+	parseDateTime := func(s string) (time.Time, error) {
+		// Daftar format yang mungkin
+		formats := []string{
+			"2006-01-02T15:04:05.000Z07:00", // Dengan zona waktu (misalnya, 2025-05-15T04:57:00.000+07:00)
+			"2006-01-02T15:04:05.000",       // Tanpa zona waktu (misalnya, 2025-05-15T04:57:00.000)
+			"2006-01-02T15:04:05Z07:00",     // Tanpa milidetik, dengan zona waktu
+			"2006-01-02T15:04:05",           // Tanpa milidetik dan zona waktu
+			time.RFC3339,                    // Format RFC3339 standar
+		}
+
+		for _, format := range formats {
+			if t, err := time.Parse(format, s); err == nil && !t.IsZero() {
+				// Jika tidak ada zona waktu, anggap sebagai UTC
+				if t.Location() == time.UTC || t.Location() == nil {
+					return t.UTC(), nil
+				}
+				return t, nil
+			}
+		}
+		return time.Time{}, fmt.Errorf("format datetime tidak valid: %s", s)
+	}
+
 	// Parsing waktu_dimulai
-	waktuDimulai, err := time.Parse("2006-01-02T15:04:05.000Z07:00", updateRequest.WaktuDimulaiStr)
+	waktuDimulai, err := parseDateTime(updateRequest.WaktuDimulaiStr)
 	if err != nil {
 		response := helper.ResponseWithOutData{
 			Code:    http.StatusBadRequest,
@@ -151,7 +174,7 @@ func MasyarakatEditJanjiTemu(c *fiber.Ctx) error {
 	}
 
 	// Parsing waktu_selesai
-	waktuSelesai, err := time.Parse("2006-01-02T15:04:05.000Z07:00", updateRequest.WaktuSelesaiStr)
+	waktuSelesai, err := parseDateTime(updateRequest.WaktuSelesaiStr)
 	if err != nil {
 		response := helper.ResponseWithOutData{
 			Code:    http.StatusBadRequest,
