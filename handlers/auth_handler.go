@@ -40,8 +40,8 @@ func RegisterUser(c *fiber.Ctx) error {
 	if err := c.BodyParser(&user); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(Response{Success: 0, Message: err.Error(), Data: nil})
 	}
-	 // TODO: new Validation for Notification Token required from FRONT END!!
-	if user.FullName == "" || user.Password == "" || user.PhoneNumber == "" || user.Email == "" || user.NotificationToken == ""{
+	// TODO: new Validation for Notification Token required from FRONT END!!
+	if user.FullName == "" || user.Password == "" || user.PhoneNumber == "" || user.Email == "" || user.NotificationToken == "" {
 		return c.Status(http.StatusBadRequest).JSON(Response{Success: 0, Message: "Fullname, Password, NoHP, and Email are required fields", Data: nil})
 	}
 
@@ -120,19 +120,19 @@ func hashPassword(password string) (string, error) {
 
 func saveUserToDatabase(user *models.User) (int64, error) {
 	db := database.GetDBInstance()
-	// ! Updated: added new query for adding Notification Token 
+	// ! Updated: added new query for adding Notification Token
 	query := "INSERT INTO users (role, full_name, username, photo_profile, phone_number, email, password, notification_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	result, err := db.Exec(query, 
-			user.Role, 
-			user.FullName, 
-			user.Username, 
-			user.PhotoProfile, 
-			user.PhoneNumber, 
-			user.Email, 
-			user.Password, 
-			user.NotificationToken,
-			user.CreatedAt, 
-			user.UpdatedAt,
+	result, err := db.Exec(query,
+		user.Role,
+		user.FullName,
+		user.Username,
+		user.PhotoProfile,
+		user.PhoneNumber,
+		user.Email,
+		user.Password,
+		user.NotificationToken,
+		user.CreatedAt,
+		user.UpdatedAt,
 	)
 
 	if err != nil {
@@ -247,28 +247,32 @@ func generateAuthToken(userID int64, role string) (string, error) {
 
 func getUserByID(userID int) (models.User, error) {
 	db := database.GetDBInstance()
-
+	var photoProfile sql.NullString
 	// !UUPDATED: field query for retireve Notification Token
 	var user models.User
-    query := "SELECT id, full_name, username, role, photo_profile, phone_number, email, password, notification_token, created_at, updated_at FROM users WHERE id = ?"
-    err := db.QueryRowContext(context.Background(), query, userID).Scan(
-        &user.ID, 
-        &user.FullName, 
-        &user.Username, 
-        &user.Role, 
-        &user.PhotoProfile, 
-        &user.PhoneNumber, 
-        &user.Email, 
-        &user.Password, 
-        &user.NotificationToken,
-        &user.CreatedAt, 
-        &user.UpdatedAt,
-    )
-	
+	query := "SELECT id, full_name, username, role, photo_profile, phone_number, email, password, notification_token, created_at, updated_at FROM users WHERE id = ?"
+	err := db.QueryRowContext(context.Background(), query, userID).Scan(
+		&user.ID,
+		&user.FullName,
+		&user.Username,
+		&user.Role,
+		&photoProfile,
+		&user.PhoneNumber,
+		&user.Email,
+		&user.Password,
+		&user.NotificationToken,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if photoProfile.Valid {
+		user.PhotoProfile = photoProfile.String
+	} else {
+		user.PhotoProfile = ""
+	}
 	if err != nil {
 		log.Println("Error getting user by ID:", err)
 		return models.User{}, err
 	}
-	fmt.Println("Recived User Dat:",user)
+	fmt.Println("Recived User Dat:", user)
 	return user, nil
 }
