@@ -5,6 +5,7 @@ import (
 	"backend-pedika-fiber/database"
 	"backend-pedika-fiber/helper"
 	"backend-pedika-fiber/models"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -98,14 +99,29 @@ func MasyarakatCreateJanjiTemu(c *fiber.Ctx) error {
 	}
 	return c.Status(http.StatusCreated).JSON(response)
 }
-
+func parseDateTime(s string) (time.Time, error) {
+	// List of possible formats
+	formats := []string{
+		time.RFC3339,                    // 2006-01-02T15:04:05Z07:00
+		"2006-01-02T15:04:05.000Z",      // With milliseconds
+		"2006-01-02T15:04:05Z",          // Without milliseconds
+		"2006-01-02T15:04:05.000-07:00", // With milliseconds and offset
+		"2006-01-02T15:04:05-07:00",     // Without milliseconds and offset
+	}
+	for _, format := range formats {
+		if t, err := time.Parse(format, s); err == nil && !t.IsZero() {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid datetime format: %s", s)
+}
 func MasyarakatEditJanjiTemu(c *fiber.Ctx) error {
 	janjiTemuID := c.Params("id")
 
 	var updateRequest struct {
-		WaktuDimulai        time.Time `json:"waktu_dimulai"`
-		WaktuSelesai        time.Time `json:"waktu_selesai"`
-		KeperluanKonsultasi string    `json:"keperluan_konsultasi"`
+		WaktuDimulai        string `json:"waktu_dimulai"`
+		WaktuSelesai        string `json:"waktu_selesai"`
+		KeperluanKonsultasi string `json:"keperluan_konsultasi"`
 	}
 	if err := c.BodyParser(&updateRequest); err != nil {
 		response := helper.ResponseWithOutData{
@@ -116,8 +132,24 @@ func MasyarakatEditJanjiTemu(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(response)
 	}
 
-	waktuDimulai := updateRequest.WaktuDimulai
-	waktuSelesai := updateRequest.WaktuSelesai
+	waktuDimulai, err := parseDateTime(updateRequest.WaktuDimulai)
+	if err != nil {
+		response := helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Invalid waktu_dimulai format",
+		}
+		return c.Status(http.StatusBadRequest).JSON(response)
+	}
+	waktuSelesai, err := parseDateTime(updateRequest.WaktuSelesai)
+	if err != nil {
+		response := helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Invalid waktu_selesai format",
+		}
+		return c.Status(http.StatusBadRequest).JSON(response)
+	}
 
 	var janjiTemu models.JanjiTemu
 	if err := database.DB.First(&janjiTemu, janjiTemuID).Error; err != nil {
@@ -306,241 +338,238 @@ func AdminJanjiTemuByID(c *fiber.Ctx) error {
 }
 
 func AdminApproveJanjiTemu(c *fiber.Ctx) error {
-    // Ambil token dari header Authorization
-    userToken, ok := c.Locals("user").(*jwt.Token)
-    if !ok || userToken == nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(Response{
-            Success: 0,
-            Message: "Internal server error: Unable to retrieve user token",
-            Data:    nil,
-        })
-    }
-	 claims, ok := userToken.Claims.(jwt.MapClaims)
-    if !ok {
-        return c.Status(fiber.StatusInternalServerError).JSON(Response{
-            Success: 0,
-            Message: "Internal server error: Invalid token claims",
-            Data:    nil,
-        })
-    }
+	// Ambil token dari header Authorization
+	userToken, ok := c.Locals("user").(*jwt.Token)
+	if !ok || userToken == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(Response{
+			Success: 0,
+			Message: "Internal server error: Unable to retrieve user token",
+			Data:    nil,
+		})
+	}
+	claims, ok := userToken.Claims.(jwt.MapClaims)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(Response{
+			Success: 0,
+			Message: "Internal server error: Invalid token claims",
+			Data:    nil,
+		})
+	}
 
-    // Ambil userID dari claims
-    userIDFloat, ok := claims["user_id"].(float64)
-    if !ok {
-        return c.Status(fiber.StatusInternalServerError).JSON(Response{
-            Success: 0,
-            Message: "Internal server error: Invalid user ID in token",
-            Data:    nil,
-        })
-    }
-    userID := uint(userIDFloat)
+	// Ambil userID dari claims
+	userIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(Response{
+			Success: 0,
+			Message: "Internal server error: Invalid user ID in token",
+			Data:    nil,
+		})
+	}
+	userID := uint(userIDFloat)
 
-    // Ambil ID janji temu dari parameter URL
-    id := c.Params("id")
-    if id == "" {
-        return c.Status(http.StatusBadRequest).JSON(helper.ResponseWithOutData{
-            Code:    http.StatusBadRequest,
-            Status:  "error",
-            Message: "Janji temu ID is required",
-        })
-    }
+	// Ambil ID janji temu dari parameter URL
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(http.StatusBadRequest).JSON(helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Janji temu ID is required",
+		})
+	}
 
-    // Cari janji temu di database
-    var janjiTemu models.JanjiTemu
-    db := database.GetGormDBInstance()
-    if err := db.First(&janjiTemu, id).Error; err != nil {
-        return c.Status(http.StatusNotFound).JSON(helper.ResponseWithOutData{
-            Code:    http.StatusNotFound,
-            Status:  "error",
-            Message: "Janji temu tidak ditemukan",
-        })
-    }
+	// Cari janji temu di database
+	var janjiTemu models.JanjiTemu
+	db := database.GetGormDBInstance()
+	if err := db.First(&janjiTemu, id).Error; err != nil {
+		return c.Status(http.StatusNotFound).JSON(helper.ResponseWithOutData{
+			Code:    http.StatusNotFound,
+			Status:  "error",
+			Message: "Janji temu tidak ditemukan",
+		})
+	}
 
-    // Update status janji temu
-    janjiTemu.UserIDTolakSetujui = &userID // ID admin yang menyetujui
-    janjiTemu.Status = "Disetujui"
-    now := time.Now()
-    if err := db.Save(&janjiTemu).Error; err != nil {
-        return c.Status(http.StatusInternalServerError).JSON(helper.ResponseWithOutData{
-            Code:    http.StatusInternalServerError,
-            Status:  "error",
-            Message: "Gagal menyimpan perubahan status",
-        })
-    }
+	// Update status janji temu
+	janjiTemu.UserIDTolakSetujui = &userID // ID admin yang menyetujui
+	janjiTemu.Status = "Disetujui"
+	now := time.Now()
+	if err := db.Save(&janjiTemu).Error; err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(helper.ResponseWithOutData{
+			Code:    http.StatusInternalServerError,
+			Status:  "error",
+			Message: "Gagal menyimpan perubahan status",
+		})
+	}
 
-    // Cari pengguna untuk notifikasi
-    var user models.User
-    if err := db.Where("id = ?", janjiTemu.UserID).First(&user).Error; err != nil {
-        log.Printf("Failed to retrieve user for notification: %v", err)
-    } else if user.NotificationToken != "" {
-        log.Println("User notification token:", user.NotificationToken)
+	// Cari pengguna untuk notifikasi
+	var user models.User
+	if err := db.Where("id = ?", janjiTemu.UserID).First(&user).Error; err != nil {
+		log.Printf("Failed to retrieve user for notification: %v", err)
+	} else if user.NotificationToken != "" {
+		log.Println("User notification token:", user.NotificationToken)
 
-        // Siapkan data notifikasi FCM
-        notificationData := models.FCMNotificationData{
-            Type:      "appointment",
-            ReportID:  id, // Gunakan ID janji temu sebagai identifier
-            Status:    "approved",
-            UpdatedBy: userID, // ID admin yang menyetujui
-            UpdatedAt: now.Format(time.RFC3339),
-            Notes:     "Kami sudah siap bertemu dengan Anda!",
-            DeepLink:  "laporanku://appointments/" + id, // Deep link opsional
-        }
+		// Siapkan data notifikasi FCM
+		notificationData := models.FCMNotificationData{
+			Type:      "appointment",
+			ReportID:  id, // Gunakan ID janji temu sebagai identifier
+			Status:    "approved",
+			UpdatedBy: userID, // ID admin yang menyetujui
+			UpdatedAt: now.Format(time.RFC3339),
+			Notes:     "Kami sudah siap bertemu dengan Anda!",
+			DeepLink:  "laporanku://appointments/" + id, // Deep link opsional
+		}
 
-        // Buat notifikasi untuk disimpan di database dengan pesan interaktif
-		
-        notification, err := NewNotificationFromFCMData(
-            janjiTemu.UserID,
-            "Yay! Janji Pertemuan Kamu Telah Disetujui!",
-            "Hore! Jadwal janji temu kamu pada "+janjiTemu.WaktuDimulai.Format(time.RFC3339)+" telah disetujui. Jangan lupakan janji kita ya!",
-            notificationData,
-            now,
-        )
-        if err != nil {
-            log.Printf("Error creating notification: %v", err)
-        } else {
-            
-            if err := db.Create(&notification).Error; err != nil {
-                log.Printf("Failed to store notification: %v", err)
-            }
+		// Buat notifikasi untuk disimpan di database dengan pesan interaktif
 
-            
-            if err := SendFCMNotification(user.NotificationToken, notificationData,*notification); err != nil {
-                log.Printf("Failed to send FCM notification: %v", err)
-            }
-        }
-    }
+		notification, err := NewNotificationFromFCMData(
+			janjiTemu.UserID,
+			"Yay! Janji Pertemuan Kamu Telah Disetujui!",
+			"Hore! Jadwal janji temu kamu pada "+janjiTemu.WaktuDimulai.Format(time.RFC3339)+" telah disetujui. Jangan lupakan janji kita ya!",
+			notificationData,
+			now,
+		)
+		if err != nil {
+			log.Printf("Error creating notification: %v", err)
+		} else {
 
-    // Response sukses
-    response := helper.ResponseWithOutData{
-        Code:    http.StatusOK,
-        Status:  "success",
-        Message: "Janji Temu berhasil disetujui",
-    }
-    return c.Status(http.StatusOK).JSON(response)
+			if err := db.Create(&notification).Error; err != nil {
+				log.Printf("Failed to store notification: %v", err)
+			}
+
+			if err := SendFCMNotification(user.NotificationToken, notificationData, *notification); err != nil {
+				log.Printf("Failed to send FCM notification: %v", err)
+			}
+		}
+	}
+
+	// Response sukses
+	response := helper.ResponseWithOutData{
+		Code:    http.StatusOK,
+		Status:  "success",
+		Message: "Janji Temu berhasil disetujui",
+	}
+	return c.Status(http.StatusOK).JSON(response)
 }
 
-
 func AdminCancelJanjiTemu(c *fiber.Ctx) error {
-    janjiTemuID := c.Params("id")
-    if janjiTemuID == "" {
-        return c.Status(http.StatusBadRequest).JSON(helper.ResponseWithOutData{
-            Code:    http.StatusBadRequest,
-            Status:  "error",
-            Message: "Janji temu ID is required",
-        })
-    }
+	janjiTemuID := c.Params("id")
+	if janjiTemuID == "" {
+		return c.Status(http.StatusBadRequest).JSON(helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Janji temu ID is required",
+		})
+	}
 
 	userToken, ok := c.Locals("user").(*jwt.Token)
-    if !ok || userToken == nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(Response{
-            Success: 0,
-            Message: "Internal server error: Unable to retrieve user token",
-            Data:    nil,
-        })
-    }
+	if !ok || userToken == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(Response{
+			Success: 0,
+			Message: "Internal server error: Unable to retrieve user token",
+			Data:    nil,
+		})
+	}
 	claims, ok := userToken.Claims.(jwt.MapClaims)
-    if !ok {
-        return c.Status(fiber.StatusInternalServerError).JSON(Response{
-            Success: 0,
-            Message: "Internal server error: Invalid token claims",
-            Data:    nil,
-        })
-    }
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(Response{
+			Success: 0,
+			Message: "Internal server error: Invalid token claims",
+			Data:    nil,
+		})
+	}
 
-    // Ambil userID dari claims
-    userIDFloat, ok := claims["user_id"].(float64)
-    if !ok {
-        return c.Status(fiber.StatusInternalServerError).JSON(Response{
-            Success: 0,
-            Message: "Internal server error: Invalid user ID in token",
-            Data:    nil,
-        })
-    }
-    userID := uint(userIDFloat)
+	// Ambil userID dari claims
+	userIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(Response{
+			Success: 0,
+			Message: "Internal server error: Invalid user ID in token",
+			Data:    nil,
+		})
+	}
+	userID := uint(userIDFloat)
 	log.Println("[DEBUG] Content-Type:", c.Get("Content-Type"))
-    log.Println("[DEBUG] Raw Body:", string(c.Body()))
+	log.Println("[DEBUG] Raw Body:", string(c.Body()))
 
-    // Parse body untuk alasan ditolak
-    alasanDitolak := c.FormValue("alasan_ditolak")
-    if alasanDitolak == "" {
-        return c.Status(http.StatusBadRequest).JSON(helper.ResponseWithOutData{
-            Code:    http.StatusBadRequest,
-            Status:  "error",
-            Message: "Alasan ditolak is required",
-        })
-    }
+	// Parse body untuk alasan ditolak
+	alasanDitolak := c.FormValue("alasan_ditolak")
+	if alasanDitolak == "" {
+		return c.Status(http.StatusBadRequest).JSON(helper.ResponseWithOutData{
+			Code:    http.StatusBadRequest,
+			Status:  "error",
+			Message: "Alasan ditolak is required",
+		})
+	}
 
-    // Cari janji temu di database
-    var janjiTemu models.JanjiTemu
-    db := database.GetGormDBInstance()
-    if err := db.First(&janjiTemu, janjiTemuID).Error; err != nil {
-        response := helper.ResponseWithOutData{
-            Code:    http.StatusNotFound,
-            Status:  "error",
-            Message: "Janji temu not found",
-        }
-        return c.Status(http.StatusNotFound).JSON(response)
-    }
+	// Cari janji temu di database
+	var janjiTemu models.JanjiTemu
+	db := database.GetGormDBInstance()
+	if err := db.First(&janjiTemu, janjiTemuID).Error; err != nil {
+		response := helper.ResponseWithOutData{
+			Code:    http.StatusNotFound,
+			Status:  "error",
+			Message: "Janji temu not found",
+		}
+		return c.Status(http.StatusNotFound).JSON(response)
+	}
 
-    // Update status janji temu
-    janjiTemu.Status = "Ditolak"
-    janjiTemu.UserIDTolakSetujui = &userID
-    janjiTemu.AlasanDitolak = alasanDitolak 
-    now := time.Now()
-    if err := db.Save(&janjiTemu).Error; err != nil {
-        response := helper.ResponseWithOutData{
-            Code:    http.StatusInternalServerError,
-            Status:  "error",
-            Message: "Failed to cancel janji temu",
-        }
-        return c.Status(http.StatusInternalServerError).JSON(response)
-    }
+	// Update status janji temu
+	janjiTemu.Status = "Ditolak"
+	janjiTemu.UserIDTolakSetujui = &userID
+	janjiTemu.AlasanDitolak = alasanDitolak
+	now := time.Now()
+	if err := db.Save(&janjiTemu).Error; err != nil {
+		response := helper.ResponseWithOutData{
+			Code:    http.StatusInternalServerError,
+			Status:  "error",
+			Message: "Failed to cancel janji temu",
+		}
+		return c.Status(http.StatusInternalServerError).JSON(response)
+	}
 
-    // Cari pengguna untuk notifikasi
-    var user models.User
-    if err := db.Where("id = ?", janjiTemu.UserID).First(&user).Error; err != nil {
-        log.Printf("Failed to retrieve user for notification: %v", err)
-    } else if user.NotificationToken != "" {
-        log.Println("User notification token:", user.NotificationToken)
+	// Cari pengguna untuk notifikasi
+	var user models.User
+	if err := db.Where("id = ?", janjiTemu.UserID).First(&user).Error; err != nil {
+		log.Printf("Failed to retrieve user for notification: %v", err)
+	} else if user.NotificationToken != "" {
+		log.Println("User notification token:", user.NotificationToken)
 
-        notificationData := models.FCMNotificationData{
-            Type:      "appointment",
-            ReportID:  janjiTemuID, 
-            Status:    "rejected",
-            UpdatedBy: userID, 
-            UpdatedAt: now.Format(time.RFC3339),
-            Notes:     "Maaf, janji temu Anda ditolak karena: " + alasanDitolak,
-            DeepLink:  "laporanku://appointments/" + janjiTemuID,
-        }
+		notificationData := models.FCMNotificationData{
+			Type:      "appointment",
+			ReportID:  janjiTemuID,
+			Status:    "rejected",
+			UpdatedBy: userID,
+			UpdatedAt: now.Format(time.RFC3339),
+			Notes:     "Maaf, janji temu Anda ditolak karena: " + alasanDitolak,
+			DeepLink:  "laporanku://appointments/" + janjiTemuID,
+		}
 
-        
-        notification, err := NewNotificationFromFCMData(
-            janjiTemu.UserID,
-            "Oops! Janji Pertemuan Kamu Ditolak..",
-            "Sayang sekali, janji temu kamu pada "+janjiTemu.WaktuDimulai.Format(time.RFC3339)+" ditolak. Alasan: "+janjiTemu.AlasanDitolak,
-            notificationData,
-            now,
-        )
-        if err != nil {
-            log.Printf("Error creating notification: %v", err)
-        } else {
-            // Simpan notifikasi ke database
-            if err := db.Create(notification).Error; err != nil {
-                log.Printf("Failed to store notification: %v", err)
-            }
+		notification, err := NewNotificationFromFCMData(
+			janjiTemu.UserID,
+			"Oops! Janji Pertemuan Kamu Ditolak..",
+			"Sayang sekali, janji temu kamu pada "+janjiTemu.WaktuDimulai.Format(time.RFC3339)+" ditolak. Alasan: "+janjiTemu.AlasanDitolak,
+			notificationData,
+			now,
+		)
+		if err != nil {
+			log.Printf("Error creating notification: %v", err)
+		} else {
+			// Simpan notifikasi ke database
+			if err := db.Create(notification).Error; err != nil {
+				log.Printf("Failed to store notification: %v", err)
+			}
 
-            // Kirim push notification via FCM
-            if err := SendFCMNotification(user.NotificationToken, notificationData, *notification); err != nil {
-                log.Printf("Failed to send FCM notification: %v", err)
-            }
-        }
-    }
+			// Kirim push notification via FCM
+			if err := SendFCMNotification(user.NotificationToken, notificationData, *notification); err != nil {
+				log.Printf("Failed to send FCM notification: %v", err)
+			}
+		}
+	}
 
-    // Response sukses
-    response := helper.ResponseWithOutData{
-        Code:    http.StatusOK,
-        Status:  "success",
-        Message: "Janji Temu Sudah Ditolak",
-    }
-    return c.Status(http.StatusOK).JSON(response)
+	// Response sukses
+	response := helper.ResponseWithOutData{
+		Code:    http.StatusOK,
+		Status:  "success",
+		Message: "Janji Temu Sudah Ditolak",
+	}
+	return c.Status(http.StatusOK).JSON(response)
 }
