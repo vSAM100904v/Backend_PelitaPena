@@ -99,22 +99,7 @@ func MasyarakatCreateJanjiTemu(c *fiber.Ctx) error {
 	}
 	return c.Status(http.StatusCreated).JSON(response)
 }
-func parseDateTime(s string) (time.Time, error) {
-	// List of possible formats
-	formats := []string{
-		time.RFC3339,                    // 2006-01-02T15:04:05Z07:00
-		"2006-01-02T15:04:05.000Z",      // With milliseconds
-		"2006-01-02T15:04:05Z",          // Without milliseconds
-		"2006-01-02T15:04:05.000-07:00", // With milliseconds and offset
-		"2006-01-02T15:04:05-07:00",     // Without milliseconds and offset
-	}
-	for _, format := range formats {
-		if t, err := time.Parse(format, s); err == nil && !t.IsZero() {
-			return t, nil
-		}
-	}
-	return time.Time{}, fmt.Errorf("invalid datetime format: %s", s)
-}
+
 func MasyarakatEditJanjiTemu(c *fiber.Ctx) error {
 	janjiTemuID := c.Params("id")
 

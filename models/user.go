@@ -24,7 +24,7 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 
 	// Add new Field for NotifiactionToken:
-	NotificationToken string  `json:"notification_token" gorm:"size:255;default:null"`
+	NotificationToken string `json:"notification_token" gorm:"size:255;default:null"`
 }
 
 type LoginCredentials struct {

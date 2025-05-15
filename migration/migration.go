@@ -19,10 +19,11 @@ func RunMigration() {
 		&models.Event{},
 		&models.JanjiTemu{},
 		&models.Notification{},
-		&models.ReportAdmin{})
-	// &models.Notification{}) unutk Tabel Notifciation
+		&models.ReportAdmin{},
+		&models.Donation{},
+	)
+
 	if err != nil {
 		log.Println(err)
 	}
-
 }

@@ -15,7 +15,7 @@ import (
 
 func init() {
 	err := godotenv.Load()
-	if err != nil {	
+	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 }
@@ -61,8 +61,9 @@ func UploadMultipleFileToCloudinary(files []*multipart.FileHeader) ([]string, er
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload image to Cloudinary: %v", err)
 		}
-		imageURLs = append(imageURLs, resp.SecureURL)
+		fmt.Println("Result image RESPONSE CKOUDINARY", resp)
+		imageURLs = append(imageURLs, resp.URL)
 	}
-
+	fmt.Println("Result image urls dari cloduinary", imageURLs)
 	return imageURLs, nil
 }

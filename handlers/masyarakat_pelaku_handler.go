@@ -13,14 +13,14 @@ import (
 
 func CreatePelaku(c *fiber.Ctx) error {
 	var pelaku models.Pelaku
-	if err := c.BodyParser(&pelaku); err != nil {
-		response := helper.ResponseWithOutData{
-			Code:    http.StatusBadRequest,
-			Status:  "error",
-			Message: "Invalid request body",
-		}
-		return c.Status(http.StatusBadRequest).JSON(response)
-	}
+	// if err := c.BodyParser(&pelaku); err != nil {
+	// 	response := helper.ResponseWithOutData{
+	// 		Code:    http.StatusBadRequest,
+	// 		Status:  "error",
+	// 		Message: "Invalid request body",
+	// 	}
+	// 	return c.Status(http.StatusBadRequest).JSON(response)
+	// }
 	pelaku.NoRegistrasi = c.FormValue("no_registrasi")
 	pelaku.NIKPelaku = c.FormValue("nik_pelaku")
 	pelaku.Nama = c.FormValue("nama_pelaku")
@@ -87,113 +87,106 @@ func CreatePelaku(c *fiber.Ctx) error {
 func UpdatePelaku(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var pelaku models.Pelaku
-	if err := database.DB.First(&pelaku, id).Error; err != nil {
-		response := helper.ResponseWithOutData{
+
+	// 1) Cari dulu record
+	if err := database.DB.First(&pelaku, "id = ?", id).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(helper.ResponseWithOutData{
 			Code:    http.StatusNotFound,
 			Status:  "error",
-			Message: "Pelaku Tidak DItemukan",
-		}
-		return c.Status(http.StatusNotFound).JSON(response)
+			Message: "Pelaku Tidak Ditemukan",
+		})
 	}
-	if err := c.BodyParser(&pelaku); err != nil {
-		response := helper.ResponseWithOutData{
-			Code:    http.StatusBadRequest,
-			Status:  "error",
-			Message: "Invalid request body",
-		}
-		return c.Status(http.StatusBadRequest).JSON(response)
+
+	// 2) Ambil semua field via FormValue, TIDAK pakai BodyParser
+	if v := c.FormValue("no_registrasi"); v != "" {
+		pelaku.NoRegistrasi = v
 	}
-	if value := c.FormValue("no_registrasi"); value != "" {
-		pelaku.NoRegistrasi = value
+	if v := c.FormValue("nik_pelaku"); v != "" {
+		pelaku.NIKPelaku = v
 	}
-	if value := c.FormValue("nik_pelaku"); value != "" {
-		pelaku.NIKPelaku = value
+	if v := c.FormValue("nama_pelaku"); v != "" {
+		pelaku.Nama = v
 	}
-	if value := c.FormValue("nama_pelaku"); value != "" {
-		pelaku.Nama = value
-	}
-	if value := c.FormValue("usia_pelaku"); value != "" {
-		if usia, err := strconv.Atoi(value); err == nil {
+	if v := c.FormValue("usia_pelaku"); v != "" {
+		if usia, err := strconv.Atoi(v); err == nil {
 			pelaku.Usia = usia
 		}
 	}
-	if value := c.FormValue("alamat_pelaku"); value != "" {
-		pelaku.AlamatPelaku = value
+	if v := c.FormValue("alamat_pelaku"); v != "" {
+		pelaku.AlamatPelaku = v
 	}
-	if value := c.FormValue("alamat_detail"); value != "" {
-		pelaku.AlamatDetail = value
+	if v := c.FormValue("alamat_detail"); v != "" {
+		pelaku.AlamatDetail = v
 	}
-	if value := c.FormValue("jenis_kelamin"); value != "" {
-		pelaku.JenisKelamin = value
+	if v := c.FormValue("jenis_kelamin"); v != "" {
+		pelaku.JenisKelamin = v
 	}
-	if value := c.FormValue("agama"); value != "" {
-		pelaku.Agama = value
+	if v := c.FormValue("agama"); v != "" {
+		pelaku.Agama = v
 	}
-	if value := c.FormValue("no_telepon"); value != "" {
-		pelaku.NoTelepon = value
+	if v := c.FormValue("no_telepon"); v != "" {
+		pelaku.NoTelepon = v
 	}
-	if value := c.FormValue("pendidikan"); value != "" {
-		pelaku.Pendidikan = value
+	if v := c.FormValue("pendidikan"); v != "" {
+		pelaku.Pendidikan = v
 	}
-	if value := c.FormValue("pekerjaan"); value != "" {
-		pelaku.Pekerjaan = value
+	if v := c.FormValue("pekerjaan"); v != "" {
+		pelaku.Pekerjaan = v
 	}
-	if value := c.FormValue("status_perkawinan"); value != "" {
-		pelaku.StatusPerkawinan = value
+	if v := c.FormValue("status_perkawinan"); v != "" {
+		pelaku.StatusPerkawinan = v
 	}
-	if value := c.FormValue("kebangsaan"); value != "" {
-		pelaku.Kebangsaan = value
+	if v := c.FormValue("kebangsaan"); v != "" {
+		pelaku.Kebangsaan = v
 	}
-	if value := c.FormValue("hubungan_dengan_korban"); value != "" {
-		pelaku.HubunganDenganKorban = value
+	if v := c.FormValue("hubungan_dengan_korban"); v != "" {
+		pelaku.HubunganDenganKorban = v
 	}
-	if value := c.FormValue("keterangan_lainnya"); value != "" {
-		pelaku.KeteranganLainnya = value
+	if v := c.FormValue("keterangan_lainnya"); v != "" {
+		pelaku.KeteranganLainnya = v
 	}
 
-	file, err := c.FormFile("dokumentasi_pelaku")
-	if err == nil {
+	// 3) Handle file upload (jika ada)
+	if file, err := c.FormFile("dokumentasi_pelaku"); err == nil {
 		src, err := file.Open()
 		if err != nil {
-			response := helper.ResponseWithOutData{
+			return c.Status(fiber.StatusInternalServerError).JSON(helper.ResponseWithOutData{
 				Code:    http.StatusInternalServerError,
 				Status:  "error",
 				Message: "Failed to open image file",
-			}
-			return c.Status(http.StatusInternalServerError).JSON(response)
+			})
 		}
 		defer src.Close()
 
 		imageURL, err := helper.UploadFileToCloudinary(src, file.Filename)
 		if err != nil {
-			response := helper.ResponseWithOutData{
+			return c.Status(fiber.StatusInternalServerError).JSON(helper.ResponseWithOutData{
 				Code:    http.StatusInternalServerError,
 				Status:  "error",
-				Message: "Gagal Mengupload Gambat",
-			}
-			return c.Status(http.StatusInternalServerError).JSON(response)
+				Message: "Gagal Mengupload Gambar",
+			})
 		}
-
 		pelaku.DokumentasiPelaku = imageURL
 	}
 
 	pelaku.UpdatedAt = time.Now()
+
+	// 4) Simpan perubahan—pakai Save atau Updates
 	if err := database.DB.Save(&pelaku).Error; err != nil {
-		response := helper.ResponseWithOutData{
+		return c.Status(fiber.StatusInternalServerError).JSON(helper.ResponseWithOutData{
 			Code:    http.StatusInternalServerError,
 			Status:  "error",
 			Message: "Gagal Mengupdate Data Pelaku",
-		}
-		return c.Status(http.StatusInternalServerError).JSON(response)
+		})
 	}
 
-	response := helper.ResponseWithData{
+	// 5) Kembalikan response sukses
+	return c.Status(fiber.StatusOK).JSON(helper.ResponseWithData{
 		Code:    http.StatusOK,
 		Status:  "success",
-		Message: "Berhasil Mengupdated Data Pelaku",
+		Message: "Berhasil Mengupdate Data Pelaku",
 		Data:    pelaku,
-	}
-	return c.Status(http.StatusOK).JSON(response)
+	})
 }
 
 func DeletePelaku(c *fiber.Ctx) error {

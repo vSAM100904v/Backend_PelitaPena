@@ -123,7 +123,7 @@ func RoutesWithOutLogin(app *fiber.App) {
 		fmt.Println("succes")
 		return c.Status(200).SendString("oke manta")
 	})
-
+	app.Post("/api/publik/forgot-password", handlers.ForgotPassword)
 	app.Get("/api/emergency-contact", handlers.EmergencyContact)
 	app.Get("/api/publik-content", handlers.GetAllContents)
 	app.Get("/api/detail-content/:id", handlers.GetContentByID)
